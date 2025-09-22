@@ -1,0 +1,2 @@
+Hello CryptoCore! This is my secret message.
+I hope this encryption works!
