@@ -2,7 +2,7 @@
 """Реализация режима ECB"""
 from ..crypto.aes import AES128
 from ..crypto.padding import PKCS7Padding
-
+import re
 
 class ECBMode:
     """Реализация режима Electronic Codebook (ECB)"""
@@ -15,13 +15,20 @@ class ECBMode:
 
     def _validate_key(self, key_hex: str) -> bytes:
         """Проверка и конвертация ключа"""
+        # Убираем символы @ если есть
         key_hex = key_hex.lstrip('@')
 
+        # Проверка длины ключа
         if len(key_hex) != 32:
             raise ValueError(f"Ключ должен быть 16 байт (32 hex символа). Получено: {len(key_hex)} символов")
 
+        # Проверка hex формата
+        if not re.match(r'^[0-9a-fA-F]+$', key_hex):
+            raise ValueError("Ключ должен содержать только hex символы (0-9, a-f, A-F)")
+
         try:
-            return bytes.fromhex(key_hex)
+            key_bytes = bytes.fromhex(key_hex)
+            return key_bytes
         except ValueError as e:
             raise ValueError(f"Неверный формат ключа: {e}")
 
@@ -36,6 +43,10 @@ class ECBMode:
     def encrypt(self, data: bytes) -> bytes:
         """Шифрование данных в режиме ECB"""
         try:
+            # Проверяем что данные не пустые
+            if not data:
+                raise ValueError("Данные для шифрования не могут быть пустыми")
+
             # Добавляем PKCS7 padding
             padded_data = self.padding.pad(data)
 
@@ -58,6 +69,10 @@ class ECBMode:
     def decrypt(self, encrypted_data: bytes) -> bytes:
         """Дешифрование данных в режиме ECB"""
         try:
+            # Проверяем что данные не пустые
+            if not encrypted_data:
+                raise ValueError("Данные для дешифрования не могут быть пустыми")
+
             # Проверяем что данные кратны размеру блока
             if len(encrypted_data) % self.BLOCK_SIZE != 0:
                 raise ValueError("Размер зашифрованных данных должен быть кратен размеру блока")
