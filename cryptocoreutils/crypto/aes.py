@@ -1,5 +1,7 @@
+
 """Реализация AES"""
 from Crypto.Cipher import AES
+
 
 class AES128:
     """Реализация AES-128"""
