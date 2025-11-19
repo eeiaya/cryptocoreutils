@@ -8,6 +8,7 @@ class CBCMode(BlockCipherMode):
     def __init__(self, key_hex: str, iv_hex: str = None):
         super().__init__(key_hex, iv_hex)
         self.padding = PKCS7Padding
+        self.iv_was_provided_externally = (iv_hex is not None)
 
     def encrypt(self, data: bytes) -> bytes:
         """Шифрование данных в режиме CBC"""
@@ -39,17 +40,25 @@ class CBCMode(BlockCipherMode):
     def decrypt(self, encrypted_data: bytes) -> bytes:
         """Дешифрование данных в режиме CBC"""
         try:
-            # Проверяем что данные не пустые
             if not encrypted_data:
                 raise ValueError("Данные для дешифрования не могут быть пустыми")
 
-            # Проверяем минимальный размер (IV + хотя бы один блок)
-            if len(encrypted_data) < 32:  # 16 байт IV + 16 байт данных
-                raise ValueError("Данные слишком короткие для CBC режима")
-
-            # Извлекаем IV и зашифрованные данные
-            iv = encrypted_data[:16]
-            ciphertext_data = encrypted_data[16:]
+            # Если IV был передан в конструкторе, используем его и весь encrypted_data как шифртекст
+            # Если IV не был передан, извлекаем первые 16 байт как IV
+            if hasattr(self, 'iv') and self.iv is not None:
+                # IV передан явно - используем весь encrypted_data как шифртекст
+                iv = self.iv
+                ciphertext_data = encrypted_data
+                # Для данных от OpenSSL с padding, нужно убрать padding
+                remove_padding = True
+            else:
+                # IV не передан - извлекаем из данных
+                if len(encrypted_data) < 32:
+                    raise ValueError("Данные слишком короткие для CBC режима")
+                iv = encrypted_data[:16]
+                ciphertext_data = encrypted_data[16:]
+                # Для наших собственных данных также убираем padding
+                remove_padding = True
 
             # Проверяем что данные кратны размеру блока
             if len(ciphertext_data) % self.BLOCK_SIZE != 0:
@@ -61,16 +70,26 @@ class CBCMode(BlockCipherMode):
 
             for block in ciphertext_blocks:
                 decrypted_block = self.aes.decrypt_block(block)
-                # XOR с предыдущим зашифрованным блоком (или IV для первого блока)
                 plaintext_block = bytes(a ^ b for a, b in zip(decrypted_block, previous_block))
                 decrypted_blocks.append(plaintext_block)
-                previous_block = block  # Для следующего блока
+                previous_block = block
 
             decrypted_data = b''.join(decrypted_blocks)
 
-            # Убираем padding
-            unpadded_data = self.padding.unpad(decrypted_data)
-            return unpadded_data
+            # Убираем padding только если это необходимо
+            if remove_padding:
+                # Проверяем, есть ли padding (последний байт указывает на длину padding)
+                pad_len = decrypted_data[-1]
+                if pad_len <= self.BLOCK_SIZE:
+                    # Проверяем корректность padding
+                    expected_padding = bytes([pad_len] * pad_len)
+                    actual_padding = decrypted_data[-pad_len:]
+                    if expected_padding == actual_padding:
+                        unpadded_data = decrypted_data[:-pad_len]
+                        return unpadded_data
+
+            # Если padding некорректен или не нужно удалять, возвращаем как есть
+            return decrypted_data
 
         except Exception as e:
             raise Exception(f"Ошибка при дешифровании CBC: {e}")

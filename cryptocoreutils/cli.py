@@ -25,10 +25,10 @@ def validate_args(args) -> None:
 
     # Валидация IV
     if args.encrypt and args.iv:
-        print("⚠️  Предупреждение: IV игнорируется при шифровании")
+        print("  Предупреждение: IV игнорируется при шифровании")
 
     if args.decrypt and args.mode != 'ecb' and not args.iv:
-        print("ℹ️  Информация: IV будет прочитан из файла")
+        print("  Информация: IV будет прочитан из файла")
 
 def main():
     parser = argparse.ArgumentParser(
@@ -71,14 +71,14 @@ def main():
         # Выполняем операцию
         if args.encrypt:
             output_data = crypto_mode.encrypt(input_data)
-            print(f"✅ Файл {args.input} зашифрован -> {args.output} (режим {args.mode.upper()})")
+            print(f"Успех Файл {args.input} зашифрован -> {args.output} (режим {args.mode.upper()})")
         else:
             output_data = crypto_mode.decrypt(input_data)
-            print(f"✅ Файл {args.input} расшифрован -> {args.output} (режим {args.mode.upper()})")
+            print(f" Файл {args.input} расшифрован -> {args.output} (режим {args.mode.upper()})")
 
         write_file(args.output, output_data)
-        print("✅ Операция завершена успешно!")
+        print("Успех Операция завершена успешно!")
 
     except Exception as e:
-        print(f"❌ Ошибка: {e}", file=sys.stderr)
+        print(f" Ошибка: {e}", file=sys.stderr)
         sys.exit(1)

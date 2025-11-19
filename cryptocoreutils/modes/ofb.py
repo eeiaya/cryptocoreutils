@@ -40,13 +40,20 @@ class OFBMode(BlockCipherMode):
             if not encrypted_data:
                 raise ValueError("Данные для дешифрования не могут быть пустыми")
 
-            if len(encrypted_data) < 16:
-                raise ValueError("Данные слишком короткие для OFB режима")
+            # Если IV был передан в конструкторе, используем его и весь encrypted_data как шифртекст
+            # Если IV не был передан, извлекаем первые 16 байт как IV
+            if hasattr(self, 'iv') and self.iv is not None:
+                # IV передан явно - используем весь encrypted_data как шифртекст
+                iv = self.iv
+                ciphertext_data = encrypted_data
+            else:
+                # IV не передан - извлекаем из данных
+                if len(encrypted_data) < 32:
+                    raise ValueError("Данные слишком короткие для OFB режима")
+                iv = encrypted_data[:16]
+                ciphertext_data = encrypted_data[16:]
 
-            # Извлекаем IV и зашифрованные данные
-            iv = encrypted_data[:16]
-            ciphertext_data = encrypted_data[16:]
-
+            # OFB - потоковый режим, не требует выравнивания по блокам
             decrypted_blocks = []
             keystream_block = iv
 
@@ -61,7 +68,7 @@ class OFBMode(BlockCipherMode):
                 decrypted_block = bytes(a ^ b for a, b in zip(block, keystream_block))
                 decrypted_blocks.append(decrypted_block)
 
-            # OFB не требует паддинга
+            # OFB не требует паддинга - возвращаем как есть
             return b''.join(decrypted_blocks)
 
         except Exception as e:
