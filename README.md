@@ -1,100 +1,99 @@
-CryptoCore
+```markdown
+# CryptoCore
+
 Утилита командной строки для блочного шифрования файлов с использованием AES-128 в различных режимах работы.
 
-Возможности
-Поддержка алгоритма AES-128
+## Возможности
 
-Режимы работы: ECB, CBC, CFB, OFB, CTR
+- Поддержка алгоритма AES-128
+- Режимы работы: ECB, CBC, CFB, OFB, CTR
+- Шифрование и дешифрование файлов
+- Совместимость с OpenSSL
+- Безопасная генерация IV
 
-Шифрование и дешифрование файлов
+## Установка
 
-Совместимость с OpenSSL
+### Установка из исходного кода
 
-Безопасная генерация IV
-
-Установка
-Установка из исходного кода
-bash
-git clone <ваш-репозиторий>
+```
+git clone <https://github.com/eeiaya/cryptocoreutils.git>
 cd CryptoCoreUtils
 pip install -e .
-Прямой запуск без установки
-bash
+```
+
+### Прямой запуск без установки
+
+```
 python -m cryptocoreutils --help
-Использование
-Базовые команды
+```
+
+## Использование
+
+### Базовые команды
+
 Шифрование файла в режиме CBC:
 
-bash
+```
 cryptocoreutils --algorithm aes --mode cbc --encrypt \
        --key 000102030405060708090a0b0c0d0e0f \
        --input document.txt \
        --output document.enc
+```
+
 Дешифрование файла в режиме CBC:
 
-bash
+```
 cryptocoreutils --algorithm aes --mode cbc --decrypt \
        --key 000102030405060708090a0b0c0d0e0f \
        --iv AABBCCDDEEFF00112233445566778899 \
        --input document.enc \
        --output document_decrypted.txt
-Параметры командной строки
---algorithm (-alg): Алгоритм шифрования (только aes)
+```
 
---mode (-m): Режим работы (ecb, cbc, cfb, ofb, ctr)
+### Параметры командной строки
 
---encrypt (-enc): Режим шифрования
+- `--algorithm` (`-alg`): Алгоритм шифрования (только `aes`)
+- `--mode` (`-m`): Режим работы (`ecb`, `cbc`, `cfb`, `ofb`, `ctr`)
+- `--encrypt` (`-enc`): Режим шифрования
+- `--decrypt` (`-dec`): Режим дешифрования
+- `--key` (`-k`): Ключ шифрования (32 hex символа)
+- `--input` (`-i`): Входной файл
+- `--output` (`-o`): Выходной файл
+- `--iv`: Вектор инициализации (только для дешифрования)
 
---decrypt (-dec): Режим дешифрования
+## Особенности режимов работы
 
---key (-k): Ключ шифрования (32 hex символа)
+### ECB (Electronic Codebook)
+- Не требует IV
+- Использует padding (PKCS#7)
+- Каждый блок шифруется независимо
 
---input (-i): Входной файл
+### CBC (Cipher Block Chaining)
+- Требует IV при дешифровании
+- Использует padding (PKCS#7)
+- Каждый блок зависит от предыдущего
 
---output (-o): Выходной файл
+### CFB (Cipher Feedback)
+- Требует IV при дешифровании
+- Не использует padding
+- Потоковый режим
 
---iv: Вектор инициализации (только для дешифрования)
+### OFB (Output Feedback)
+- Требует IV при дешифровании
+- Не использует padding
+- Потоковый режим
 
-Особенности режимов работы
-ECB (Electronic Codebook)
-Не требует IV
+### CTR (Counter)
+- Требует IV при дешифровании
+- Не использует padding
+- Потоковый режим
 
-Использует padding (PKCS#7)
+## Совместимость с OpenSSL
 
-Каждый блок шифруется независимо
+### Шифрование утилитой, дешифрование OpenSSL
 
-CBC (Cipher Block Chaining)
-Требует IV при дешифровании
-
-Использует padding (PKCS#7)
-
-Каждый блок зависит от предыдущего
-
-CFB (Cipher Feedback)
-Требует IV при дешифровании
-
-Не использует padding
-
-Потоковый режим
-
-OFB (Output Feedback)
-Требует IV при дешифровании
-
-Не использует padding
-
-Потоковый режим
-
-CTR (Counter)
-Требует IV при дешифровании
-
-Не использует padding
-
-Потоковый режим
-
-Совместимость с OpenSSL
-Шифрование вашей утилитой, дешифрование OpenSSL
-bash
-# Шифрование вашей утилитой
+```
+# Шифрование
 cryptocoreutils --algorithm aes --mode cbc --encrypt \
        --key 000102030405060708090a0b0c0d0e0f \
        --input plain.txt --output cipher.bin
@@ -108,50 +107,60 @@ openssl enc -aes-128-cbc -d \
        -K 000102030405060708090A0B0C0D0E0F \
        -iv $(xxd -p iv.bin | tr -d '\n') \
        -in ciphertext_only.bin -out decrypted.txt
-Шифрование OpenSSL, дешифрование вашей утилитой
-bash
+```
+
+### Шифрование OpenSSL, дешифрование утилитой
+
+```
 # Шифрование OpenSSL
 openssl enc -aes-128-cbc \
        -K 000102030405060708090A0B0C0D0E0F \
        -iv AABBCCDDEEFF00112233445566778899 \
        -in plain.txt -out openssl_cipher.bin
 
-# Дешифрование вашей утилитой
+# Дешифрование утилитой
 cryptocoreutils --algorithm aes --mode cbc --decrypt \
        --key 000102030405060708090a0b0c0d0e0f \
        --iv AABBCCDDEEFF00112233445566778899 \
        --input openssl_cipher.bin --output decrypted.txt
-Требования
-Python 3.8 или выше
+```
 
-pycryptodome 3.23.0 или выше
+## Требования
 
-Формат ключа
+- Python 3.8 или выше
+- pycryptodome 3.23.0 или выше
+
+## Формат ключа
+
 Ключ должен быть ровно 16 байт (32 hex символа):
 
-text
+```
 Правильно: 000102030405060708090a0b0c0d0e0f
 Неправильно: 001122 (3 байта)
-Проверка целостности
+```
+
+## Проверка целостности
+
 Для проверки корректности шифрования/дешифрования:
 
-bash
+```
 # Linux/Mac
 cmp original.txt decrypted.txt
 
 # Windows
 fc /b original.txt decrypted.txt
-Примечания
-Проект разработан в образовательных целях
+```
 
-Режим ECB не рекомендуется для защиты реальных данных
+## Примечания
 
-Всегда используйте надежные случайные ключи
+- Проект разработан в образовательных целях
+- Режим ECB не рекомендуется для защиты реальных данных
+- Всегда используйте надежные случайные ключи
+- Сохраняйте ключи в безопасном месте
 
-Сохраняйте ключи в безопасном месте
+## Структура проекта
 
-Структура проекта
-text
+```
 CryptoCoreUtils/
 ├── cryptocoreutils/
 │   ├── modes/
@@ -166,4 +175,11 @@ CryptoCoreUtils/
 │   ├── file_io.py
 │   ├── cli.py
 │   └── main.py
-└── README.md
+├── tests/
+│   ├── test_ecb.py
+│   └── test_openssl.py
+├── README.md
+└── requirements.txt
+```
+```
+
