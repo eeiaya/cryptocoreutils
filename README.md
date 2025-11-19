@@ -1,21 +1,21 @@
-```markdown
+
 # CryptoCore
 
 Утилита командной строки для блочного шифрования файлов с использованием AES-128 в различных режимах работы.
 
 ## Возможности
 
-- Поддержка алгоритма AES-128
-- Режимы работы: ECB, CBC, CFB, OFB, CTR
-- Шифрование и дешифрование файлов
-- Совместимость с OpenSSL
-- Безопасная генерация IV
+* Поддержка алгоритма AES-128
+* Режимы работы: ECB, CBC, CFB, OFB, CTR
+* Шифрование и дешифрование файлов
+* Совместимость с OpenSSL
+* Безопасная генерация IV
 
 ## Установка
 
 ### Установка из исходного кода
 
-```
+```bash
 git clone <https://github.com/eeiaya/cryptocoreutils.git>
 cd CryptoCoreUtils
 pip install -e .
@@ -23,7 +23,7 @@ pip install -e .
 
 ### Прямой запуск без установки
 
-```
+```bash
 python -m cryptocoreutils --help
 ```
 
@@ -33,7 +33,7 @@ python -m cryptocoreutils --help
 
 Шифрование файла в режиме CBC:
 
-```
+```shell
 cryptocoreutils --algorithm aes --mode cbc --encrypt \
        --key 000102030405060708090a0b0c0d0e0f \
        --input document.txt \
@@ -42,7 +42,7 @@ cryptocoreutils --algorithm aes --mode cbc --encrypt \
 
 Дешифрование файла в режиме CBC:
 
-```
+```shell
 cryptocoreutils --algorithm aes --mode cbc --decrypt \
        --key 000102030405060708090a0b0c0d0e0f \
        --iv AABBCCDDEEFF00112233445566778899 \
@@ -92,7 +92,7 @@ cryptocoreutils --algorithm aes --mode cbc --decrypt \
 
 ### Шифрование утилитой, дешифрование OpenSSL
 
-```
+```bash
 # Шифрование
 cryptocoreutils --algorithm aes --mode cbc --encrypt \
        --key 000102030405060708090a0b0c0d0e0f \
@@ -111,7 +111,7 @@ openssl enc -aes-128-cbc -d \
 
 ### Шифрование OpenSSL, дешифрование утилитой
 
-```
+```bash
 # Шифрование OpenSSL
 openssl enc -aes-128-cbc \
        -K 000102030405060708090A0B0C0D0E0F \
