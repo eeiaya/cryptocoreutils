@@ -7,6 +7,7 @@ class CTRMode(BlockCipherMode):
 
     def __init__(self, key_hex: str, iv_hex: str = None):
         super().__init__(key_hex, iv_hex)
+        self.iv_was_provided_externally = (iv_hex is not None)
 
     def _increment_counter(self, counter: bytes) -> bytes:
         """Инкрементирует счетчик (big-endian)"""
@@ -30,8 +31,8 @@ class CTRMode(BlockCipherMode):
                 # Шифруем текущее значение счетчика
                 keystream_block = self.aes.encrypt_block(counter)
 
-                # XOR с открытым текстом
-                encrypted_block = bytes(a ^ b for a, b in zip(block, keystream_block))
+                # XOR с открытым текстом (только для нужного количества байт)
+                encrypted_block = bytes(a ^ b for a, b in zip(block, keystream_block[:len(block)]))
                 encrypted_blocks.append(encrypted_block)
 
                 # Инкрементируем счетчик
@@ -49,15 +50,13 @@ class CTRMode(BlockCipherMode):
             if not encrypted_data:
                 raise ValueError("Данные для дешифрования не могут быть пустыми")
 
-            # Если IV был передан в конструкторе, используем его и весь encrypted_data как шифртекст
-            # Если IV не был передан, извлекаем первые 16 байт как IV
-            if hasattr(self, 'iv') and self.iv is not None:
-                # IV передан явно - используем весь encrypted_data как шифртекст
+            # Унифицированная логика извлечения IV
+            if self.iv_was_provided_externally:
                 iv = self.iv
                 ciphertext_data = encrypted_data
             else:
                 # IV не передан - извлекаем из данных
-                if len(encrypted_data) < 32:
+                if len(encrypted_data) < 17:  # Минимум 16 байт IV + 1 байт данных
                     raise ValueError("Данные слишком короткие для CTR режима")
                 iv = encrypted_data[:16]
                 ciphertext_data = encrypted_data[16:]
@@ -73,8 +72,8 @@ class CTRMode(BlockCipherMode):
                 # Шифруем текущее значение счетчика
                 keystream_block = self.aes.encrypt_block(counter)
 
-                # XOR с шифртекстом (тот же процесс что и шифрование)
-                decrypted_block = bytes(a ^ b for a, b in zip(block, keystream_block))
+                # XOR с шифртекстом (только для нужного количества байт)
+                decrypted_block = bytes(a ^ b for a, b in zip(block, keystream_block[:len(block)]))
                 decrypted_blocks.append(decrypted_block)
 
                 # Инкрементируем счетчик

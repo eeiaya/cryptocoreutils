@@ -43,21 +43,20 @@ class CBCMode(BlockCipherMode):
             if not encrypted_data:
                 raise ValueError("Данные для дешифрования не могут быть пустыми")
 
-            # Если IV был передан в конструкторе, используем его и весь encrypted_data как шифртекст
-            # Если IV не был передан, извлекаем первые 16 байт как IV
-            if hasattr(self, 'iv') and self.iv is not None:
-                # IV передан явно - используем весь encrypted_data как шифртекст
+
+            if self.iv_was_provided_externally:
+
                 iv = self.iv
                 ciphertext_data = encrypted_data
-                # Для данных от OpenSSL с padding, нужно убрать padding
-                remove_padding = True
+
+                remove_padding = False
             else:
-                # IV не передан - извлекаем из данных
+
                 if len(encrypted_data) < 32:
                     raise ValueError("Данные слишком короткие для CBC режима")
                 iv = encrypted_data[:16]
                 ciphertext_data = encrypted_data[16:]
-                # Для наших собственных данных также убираем padding
+
                 remove_padding = True
 
             # Проверяем что данные кратны размеру блока
@@ -76,20 +75,13 @@ class CBCMode(BlockCipherMode):
 
             decrypted_data = b''.join(decrypted_blocks)
 
-            # Убираем padding только если это необходимо
+            # Убираем padding только если это наши собственные данные
             if remove_padding:
-                # Проверяем, есть ли padding (последний байт указывает на длину padding)
-                pad_len = decrypted_data[-1]
-                if pad_len <= self.BLOCK_SIZE:
-                    # Проверяем корректность padding
-                    expected_padding = bytes([pad_len] * pad_len)
-                    actual_padding = decrypted_data[-pad_len:]
-                    if expected_padding == actual_padding:
-                        unpadded_data = decrypted_data[:-pad_len]
-                        return unpadded_data
-
-            # Если padding некорректен или не нужно удалять, возвращаем как есть
-            return decrypted_data
+                unpadded_data = self.padding.unpad(decrypted_data)
+                return unpadded_data
+            else:
+                # Для данных от OpenSSL с -nopad возвращаем как есть
+                return decrypted_data
 
         except Exception as e:
             raise Exception(f"Ошибка при дешифровании CBC: {e}")

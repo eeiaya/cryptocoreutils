@@ -7,6 +7,7 @@ class CFBMode(BlockCipherMode):
 
     def __init__(self, key_hex: str, iv_hex: str = None):
         super().__init__(key_hex, iv_hex)
+        self.iv_was_provided_externally = (iv_hex is not None)
 
     def encrypt(self, data: bytes) -> bytes:
         """Шифрование данных в режиме CFB"""
@@ -43,15 +44,14 @@ class CFBMode(BlockCipherMode):
             if not encrypted_data:
                 raise ValueError("Данные для дешифрования не могут быть пустыми")
 
-            # Если IV был передан в конструкторе, используем его и весь encrypted_data как шифртекст
-            # Если IV не был передан, извлекаем первые 16 байт как IV
-            if hasattr(self, 'iv') and self.iv is not None:
-                # IV передан явно - используем весь encrypted_data как шифртекст
+            # Унифицированная логика извлечения IV как в CBC
+            if self.iv_was_provided_externally:
                 iv = self.iv
+                # ВАЖНО: если IV передан явно, то весь encrypted_data - это шифртекст без IV
                 ciphertext_data = encrypted_data
             else:
                 # IV не передан - извлекаем из данных
-                if len(encrypted_data) < 32:
+                if len(encrypted_data) < 17:  # Минимум 16 байт IV + 1 байт данных
                     raise ValueError("Данные слишком короткие для CFB режима")
                 iv = encrypted_data[:16]
                 ciphertext_data = encrypted_data[16:]

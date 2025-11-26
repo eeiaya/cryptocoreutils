@@ -1,28 +1,28 @@
-# Все тестовые файлы шифрования
+
 *.enc
 *.dec
 *.bin
 
-# Все файлы начинающиеся с test_ или secret_ (кроме тех что в папке tests/)
+
 test_*
 secret_*
 
-# Исключения - оставить только эти файлы
-!simple_test.txt
+
+!tests/plain.txt
 !test_16bytes.txt
 
-# Папка tests - игнорировать все внутри кроме .py файлов
+
 tests/*
 !tests/*.py
 !tests/__init__.py
 
-# Служебные папки Python
+
 __pycache__/
 .venv/
 venv/
 # IDE
 .idea/
 
-# Python cache
+
 __pycache__/
 *.pyc
