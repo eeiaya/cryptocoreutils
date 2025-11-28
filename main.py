@@ -1,6 +1,9 @@
+#!/usr/bin/env python3
+"""
+CryptoCore - Cryptographic Utilities Tool
+"""
 
-"""Точка входа в программу"""
 from cryptocoreutils.cli import main
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

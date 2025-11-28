@@ -88,6 +88,35 @@ cryptocoreutils --algorithm aes --mode cbc --decrypt \
 - Не использует padding
 - Потоковый режим
 
+## Команды хэширования
+```shell
+# хэширование без указания выходного файла 
+python main.py dgst -alg sha256 -i document.pdf
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 document.pdf
+
+# хэширование с указанием выходного файла
+python main.py dgst -alg sha3-256 -i backup.tar -o backup.sha3
+```
+## Параметры хэш-функций
+- `--algorithm (-alg)`: Алгоритм хэширования (`sha256`, `sha3-256`)
+- `--input (-i)`: Входной файл
+- `--output (-o)`: Выходной файл (опционально)
+
+**Формат вывода хэша**:
+#### e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 document.pdf
+
+### Размер ключа и IV
+Ключ должен быть ровно **16 байт** (32 hex-символа):
+```
+Правильно: 000102030405060708090a0b0c0d0e0f
+Неправильно: mykey123 (8 байт)
+```
+IV должен быть ровно **16 байт** (32 hex-символа):
+```
+Правильно: AABBCCDDEEFF00112233445566778899
+Неправильно: ASFSAFSA909DAS9DA99129129DNNBN
+```
+
 ## Совместимость с OpenSSL
 
 ### Шифрование утилитой, дешифрование OpenSSL
@@ -197,6 +226,75 @@ cryptocoreutils --algorithm aes --mode cbc --decrypt \
       0   1   2   0   2   1   1   0   0   3  0.350485     10/10      NonOverlappingTemplate
       .....
     ```
+   
+### Тестирование хэш-функций
+
+#### Тестирование хэш-функций sha256 и sha3-256 на тестовых векторах
+
+```bash
+   # Тестирование sha256 (Linux/MacOS/WSL)
+   ## Хэшируем пустой файл
+   crypto dgst -alg sha256 -i tests/empty.txt
+   # Ожидаемый вывод: e3b0c44298fc1c149afbf4c899cfb92427ae41e4649b934ca495991b7852b855 tests/empty.txt
+   
+   ## Хэшируем файл со строкой "abc"
+   crypto dgst -alg sha256 -i tests/test_one.txt
+   # Ожидаемый вывод: ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  tests/test_one.txt
+   
+   ## Хэшируем файл со строкой "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
+   crypto dgst -alg sha256 -i tests/test_two.txt
+   # Ожидаемый вывод: 248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1  tests/test_two.txt
+
+```
+
+```bash
+   # Тестирование sha3-256 (Linux/MacOS/WSL)
+   ## Хэшируем пустой файл
+   crypto dgst -alg sha3-256 -i tests/empty.txt
+   # Ожидаемый вывод: a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a tests/empty.txt
+   
+   ## Хэшируем файл со строкой "abc"
+   crypto dgst -alg sha3-256 -i tests/test_one.txt
+   # Ожидаемый вывод: 3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532  tests/test_one.txt
+   
+   ## Хэшируем файл со строкой "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
+   crypto dgst -alg sha3-256 -i tests/test_two.txt
+   # Ожидаемый вывод: 41c0dba2a9d6240849100376a8235e2c82e1b9998a999e21db32dd97496d3376  tests/test_two.txt
+
+```
+
+#### Тестирование хэш-функций sha256 и sha3-256 на интероперабельность
+
+```bash
+   # Тестирование sha256 (Linux/MacOS/WSL)
+   # хэшируем пустой файл нашей реализацией
+   crypto dgst -alg sha256 -i tests/empty.txt -o tests/output_hash.txt
+   # хэшируем пустой файл с помощью sha256sum
+   sha256sum tests/empty.txt > tests/system_hash.txt
+   # проверяем идентичность
+   diff -s tests/output_hash.txt tests/system_hash.txt
+   #Ожидаемый вывод: Files tests/output_hash.txt and tests/system_hash.txt are identical
+```
+
+```bash
+   # Тестирование sha3-256 (Linux/MacOS/WSL)
+   # хэшируем пустой файл нашей реализацией
+   crypto dgst -alg sha3-256 -i tests/empty.txt -o tests/output_hash.txt
+   # хэшируем пустой файл с помощью sha3sum
+   sha3sum -a 256 tests/empty.txt > tests/system_hash.txt
+   # проверяем идентичность
+   diff -s tests/output_hash.txt tests/system_hash.txt
+   #Ожидаемый вывод: Files tests/output_hash.txt and tests/system_hash.txt are identical
+```
+
+#### Тестирование хэш-функций на файле ~1gb
+
+```bash
+   crypto dgst -alg sha256 -i tests/test1gb.txt
+   # Ожидаемый вывод: d5739a8da2a57adb3b9a38495a389894227f5e083efb541b0b4473faccd55225  tests/test1gb.txt
+   # Примерное время выполнение около 50-55 секунд
+```
+
 ## Требования
 
 - Python 3.8 или выше

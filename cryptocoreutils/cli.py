@@ -1,4 +1,3 @@
-"""Парсер командной строки"""
 import argparse
 import sys
 import os
@@ -7,116 +6,118 @@ from .modes.cbc import CBCMode
 from .modes.cfb import CFBMode
 from .modes.ofb import OFBMode
 from .modes.ctr import CTRMode
-from .file_io import read_file, write_file, validate_file_exists, validate_file_not_empty
-from .csprng import generate_random_key
-
-
-def validate_args(args) -> None:
-    """Валидация аргументов командной строки"""
-    if not (args.encrypt or args.decrypt):
-        raise ValueError("Необходимо указать либо --encrypt, либо --decrypt")
-
-    if args.encrypt and args.decrypt:
-        raise ValueError("Нельзя указывать одновременно --encrypt и --decrypt")
-
-    if args.input == args.output:
-        raise ValueError("Входной и выходной файлы не могут быть одинаковыми")
-
-    validate_file_exists(args.input)
-    validate_file_not_empty(args.input)
-
-    # Валидация ключа
-    if args.decrypt and not args.key:
-        raise ValueError("Для дешифрования ключ обязателен")
-
-    # Валидация IV
-    if args.encrypt and args.iv:
-        print("  Предупреждение: IV игнорируется при шифровании")
-
-    if args.decrypt and args.mode != 'ecb' and not args.iv:
-        print("  Информация: IV будет прочитан из файла")
-
-    # Проверка слабых ключей
-    if args.key:
-        _check_weak_key(args.key)
-
-
-def _check_weak_key(key_hex: str) -> None:
-    """Проверяет ключ на слабость"""
-    key_hex = key_hex.lstrip('@')
-
-    # Проверка ключа из нулей
-    if all(c == '0' for c in key_hex):
-        print("  ⚠️  Предупреждение: Используется ключ из нулей - небезопасно!")
-
-    # Проверка последовательных байт
-    try:
-        key_bytes = bytes.fromhex(key_hex)
-        # Проверка на последовательные значения
-        is_sequential = all(
-            key_bytes[i] + 1 == key_bytes[i + 1]
-            for i in range(len(key_bytes) - 1)
-        )
-        if is_sequential:
-            print("  ⚠️  Предупреждение: Используется последовательный ключ - небезопасно!")
-    except:
-        pass
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='CryptoCoreUtils - Шифрование файлов AES-128'
-    )
+    parser = argparse.ArgumentParser(description='CryptoCore - Cryptographic Utilities')
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
-    parser.add_argument('-algorithm', '-alg', required=True, choices=['aes'], help='Алгоритм шифрования')
-    parser.add_argument('-mode', '-m', required=True, choices=['ecb', 'cbc', 'cfb', 'ofb', 'ctr'], help='Режим работы')
-    parser.add_argument('-encrypt', '-enc', action='store_true', help='Режим шифрования')
-    parser.add_argument('-decrypt', '-dec', action='store_true', help='Режим дешифрования')
-    parser.add_argument('-key', '-k', help='Ключ шифрования (32 hex символа)')  # ← Сделано НЕОБЯЗАТЕЛЬНЫМ
-    parser.add_argument('-input', '-i', required=True, help='Входной файл')
-    parser.add_argument('-output', '-o', required=True, help='Выходной файл')
-    parser.add_argument('-iv', help='Вектор инициализации (только для дешифрования)')
+    # Encryption/Decryption command
+    crypto_parser = subparsers.add_parser('crypto', help='Encryption/decryption operations')
+    crypto_parser.add_argument('-algorithm', '-alg', choices=['aes'], required=True, help='Cryptographic algorithm')
+    crypto_parser.add_argument('-mode', '-m', choices=['ecb', 'cbc', 'cfb', 'ofb', 'ctr'], required=True,
+                               help='Block cipher mode')
+    crypto_parser.add_argument('-encrypt', '-enc', action='store_true', help='Encrypt mode')
+    crypto_parser.add_argument('-decrypt', '-dec', action='store_true', help='Decrypt mode')
+    crypto_parser.add_argument('-key', '-k', required=True, help='Encryption key in hex')
+    crypto_parser.add_argument('-input', '-i', required=True, help='Input file path')
+    crypto_parser.add_argument('-output', '-o', required=True, help='Output file path')
+    crypto_parser.add_argument('-iv', help='Initialization vector in hex')
+
+    # Hash command (NEW for M4)
+    hash_parser = subparsers.add_parser('dgst', help='Compute message digests (hash)')
+    hash_parser.add_argument('-algorithm', '-alg', choices=['sha256', 'sha3-256'], required=True, help='Hash algorithm')
+    hash_parser.add_argument('-input', '-i', required=True, help='Input file path')
+    hash_parser.add_argument('-output', '-o', help='Output file path (optional)')
 
     args = parser.parse_args()
 
+    if args.command == 'crypto':
+        handle_crypto_command(args)
+    elif args.command == 'dgst':
+        handle_hash_command(args)
+    else:
+        parser.print_help()
+
+
+def handle_crypto_command(args):
+    """Обработка команд шифрования/дешифрования"""
     try:
-        validate_args(args)
+        if args.algorithm == 'aes':
+            if args.mode == 'ecb':
+                cipher = ECBMode(args.key)
+            elif args.mode == 'cbc':
+                cipher = CBCMode(args.key, args.iv)
+            elif args.mode == 'cfb':
+                cipher = CFBMode(args.key, args.iv)
+            elif args.mode == 'ofb':
+                cipher = OFBMode(args.key, args.iv)
+            elif args.mode == 'ctr':
+                cipher = CTRMode(args.key, args.iv)
+            else:
+                print(f"Ошибка: Неподдерживаемый режим: {args.mode}")
+                return
 
-        # Генерация ключа если не предоставлен при шифровании
-        if args.encrypt and not args.key:
-            args.key = generate_random_key()
-            print(f"[INFO] Сгенерирован случайный ключ: {args.key}")
+            with open(args.input, 'rb') as f:
+                data = f.read()
 
-        # Создаем соответствующий режим
-        mode_classes = {
-            'ecb': ECBMode,
-            'cbc': CBCMode,
-            'cfb': CFBMode,
-            'ofb': OFBMode,
-            'ctr': CTRMode
-        }
+            if args.encrypt:
+                result = cipher.encrypt(data)
+                print(f"Файл {args.input} зашифрован -> {args.output} (режим {args.mode.upper()})")
+            elif args.decrypt:
+                result = cipher.decrypt(data)
+                print(f"Файл {args.input} расшифрован -> {args.output} (режим {args.mode.upper()})")
+            else:
+                print("Ошибка: Укажите --encrypt или --decrypt")
+                return
 
-        mode_class = mode_classes[args.mode]
-
-        # Для режимов с IV передаем IV, для ECB - нет
-        if args.mode == 'ecb':
-            crypto_mode = mode_class(args.key)
-        else:
-            crypto_mode = mode_class(args.key, args.iv if args.decrypt else None)
-
-        input_data = read_file(args.input)
-
-        # Выполняем операцию
-        if args.encrypt:
-            output_data = crypto_mode.encrypt(input_data)
-            print(f"Файл {args.input} зашифрован -> {args.output} (режим {args.mode.upper()})")
-        else:
-            output_data = crypto_mode.decrypt(input_data)
-            print(f"Файл {args.input} расшифрован -> {args.output} (режим {args.mode.upper()})")
-
-        write_file(args.output, output_data)
-        print("Операция завершена успешно!")
+            with open(args.output, 'wb') as f:
+                f.write(result)
 
     except Exception as e:
-        print(f"Ошибка: {e}", file=sys.stderr)
+        print(f"Ошибка: {e}")
         sys.exit(1)
+
+
+def handle_hash_command(args):
+    """Обработка команд хеширования (NEW for M4)"""
+    try:
+        # Динамический импорт чтобы избежать циклических зависимостей
+
+        from cryptocoreutils.hash.sha256 import sha256_file, sha256_data
+        from cryptocoreutils.hash.sha3_256 import sha3_256_file, sha3_256_data
+
+        # Проверяем существование файла
+        if not os.path.exists(args.input):
+            print(f"Ошибка: Файл {args.input} не найден")
+            sys.exit(1)
+
+        # Вычисляем хеш в зависимости от алгоритма
+        if args.algorithm == 'sha256':
+            hash_value = sha256_file(args.input)
+        elif args.algorithm == 'sha3-256':
+            hash_value = sha3_256_file(args.input)
+        else:
+            print(f"Ошибка: Неподдерживаемый алгоритм хеширования: {args.algorithm}")
+            sys.exit(1)
+
+        # Форматируем вывод
+        output_line = f"{hash_value} {args.input}\n"
+
+        # Выводим результат
+        if args.output:
+            # Записываем в файл
+            with open(args.output, 'w') as f:
+                f.write(output_line)
+            print(f"Хеш записан в файл: {args.output}")
+        else:
+            # Выводим в stdout
+            print(output_line.strip())
+
+    except Exception as e:
+        print(f"Ошибка при вычислении хеша: {e}")
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
