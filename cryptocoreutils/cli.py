@@ -6,13 +6,13 @@ from .modes.cbc import CBCMode
 from .modes.cfb import CFBMode
 from .modes.ofb import OFBMode
 from .modes.ctr import CTRMode
+from .mac.hmac import hmac_file, verify_hmac, parse_hmac_file
 
 
 def main():
     parser = argparse.ArgumentParser(description='CryptoCore - Cryptographic Utilities')
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
-    # Encryption/Decryption command
     crypto_parser = subparsers.add_parser('crypto', help='Encryption/decryption operations')
     crypto_parser.add_argument('-algorithm', '-alg', choices=['aes'], required=True, help='Cryptographic algorithm')
     crypto_parser.add_argument('-mode', '-m', choices=['ecb', 'cbc', 'cfb', 'ofb', 'ctr'], required=True,
@@ -24,11 +24,20 @@ def main():
     crypto_parser.add_argument('-output', '-o', required=True, help='Output file path')
     crypto_parser.add_argument('-iv', help='Initialization vector in hex')
 
-    # Hash command (NEW for M4)
-    hash_parser = subparsers.add_parser('dgst', help='Compute message digests (hash)')
-    hash_parser.add_argument('-algorithm', '-alg', choices=['sha256', 'sha3-256'], required=True, help='Hash algorithm')
+    hash_parser = subparsers.add_parser('dgst', help='Compute message digests (hash) and HMAC')
+    hash_parser.add_argument('-algorithm', '-alg', choices=['sha256', 'sha3-256'],
+                             required=True, help='Hash algorithm')
     hash_parser.add_argument('-input', '-i', required=True, help='Input file path')
     hash_parser.add_argument('-output', '-o', help='Output file path (optional)')
+
+    hmac_group = hash_parser.add_argument_group('HMAC options')
+    hmac_group.add_argument('--hmac', action='store_true',
+                            help='Enable HMAC mode (requires --key)')
+    hmac_group.add_argument('--key', '-k', help='Key for HMAC in hex format')
+    hmac_group.add_argument('--verify', metavar='FILE',
+                            help='Verify HMAC against file with expected value')
+    hmac_group.add_argument('--cmac', action='store_true',
+                            help='Use AES-CMAC instead of HMAC (bonus)')
 
     args = parser.parse_args()
 
@@ -41,7 +50,6 @@ def main():
 
 
 def handle_crypto_command(args):
-    """Обработка команд шифрования/дешифрования"""
     try:
         if args.algorithm == 'aes':
             if args.mode == 'ecb':
@@ -80,42 +88,74 @@ def handle_crypto_command(args):
 
 
 def handle_hash_command(args):
-    """Обработка команд хеширования (NEW for M4)"""
     try:
-        # Динамический импорт чтобы избежать циклических зависимостей
-
-        from cryptocoreutils.hash.sha256 import sha256_file, sha256_data
-        from cryptocoreutils.hash.sha3_256 import sha3_256_file, sha3_256_data
-
-        # Проверяем существование файла
         if not os.path.exists(args.input):
             print(f"Ошибка: Файл {args.input} не найден")
             sys.exit(1)
 
-        # Вычисляем хеш в зависимости от алгоритма
-        if args.algorithm == 'sha256':
-            hash_value = sha256_file(args.input)
-        elif args.algorithm == 'sha3-256':
-            hash_value = sha3_256_file(args.input)
-        else:
-            print(f"Ошибка: Неподдерживаемый алгоритм хеширования: {args.algorithm}")
-            sys.exit(1)
+        if args.hmac:
+            if not args.key:
+                print("Ошибка: В режиме HMAC требуется указать --key")
+                sys.exit(1)
 
-        # Форматируем вывод
-        output_line = f"{hash_value} {args.input}\n"
+            try:
+                key_bytes = bytes.fromhex(args.key)
+            except ValueError:
+                print("Ошибка: Ключ должен быть в шестнадцатеричном формате")
+                sys.exit(1)
 
-        # Выводим результат
-        if args.output:
-            # Записываем в файл
-            with open(args.output, 'w') as f:
-                f.write(output_line)
-            print(f"Хеш записан в файл: {args.output}")
+            computed_hmac = hmac_file(key_bytes, args.input, args.algorithm)
+            output_line = f"{computed_hmac} {args.input}\n"
+
+            if args.verify:
+                try:
+                    expected_hmac, _ = parse_hmac_file(args.verify)
+
+                    if verify_hmac(expected_hmac, computed_hmac):
+                        print("[OK] HMAC verification successful")
+                        sys.exit(0)
+                    else:
+                        print("[ERROR] HMAC verification failed")
+                        sys.exit(1)
+
+                except FileNotFoundError:
+                    print(f"Ошибка: Файл не найден: {args.verify}")
+                    sys.exit(1)
+                except ValueError as e:
+                    print(f"Ошибка: {e}")
+                    sys.exit(1)
+
+            else:
+                if args.output:
+                    with open(args.output, 'w') as f:
+                        f.write(output_line)
+                    print(f"HMAC записан в файл: {args.output}")
+                else:
+                    print(output_line.strip())
+
         else:
-            # Выводим в stdout
-            print(output_line.strip())
+            from .hash.sha256 import sha256_file
+            from .hash.sha3_256 import sha3_256_file
+
+            if args.algorithm == 'sha256':
+                hash_value = sha256_file(args.input)
+            elif args.algorithm == 'sha3-256':
+                hash_value = sha3_256_file(args.input)
+            else:
+                print(f"Ошибка: Неподдерживаемый алгоритм: {args.algorithm}")
+                sys.exit(1)
+
+            output_line = f"{hash_value} {args.input}\n"
+
+            if args.output:
+                with open(args.output, 'w') as f:
+                    f.write(output_line)
+                print(f"Хеш записан в файл: {args.output}")
+            else:
+                print(output_line.strip())
 
     except Exception as e:
-        print(f"Ошибка при вычислении хеша: {e}")
+        print(f"Ошибка: {e}")
         sys.exit(1)
 
 

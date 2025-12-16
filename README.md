@@ -105,6 +105,53 @@ python main.py dgst -alg sha3-256 -i backup.tar -o backup.sha3
 **Формат вывода хэша**:
 #### e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 document.pdf
 
+## HMAC (Hash-based Message Authentication Code)
+HMAC обеспечивает проверку целостности и подлинности данных с использованием секретного ключа. Реализовано согласно RFC 2104.
+### Генерация HMAC
+```bash
+# HMAC-SHA256
+cryptocore dgst --algorithm sha256 --hmac --key <ключ_в_hex> --input <файл>
+
+# HMAC-SHA3-256
+cryptocore dgst --algorithm sha3-256 --hmac --key <ключ_в_hex> --input <файл>
+
+# С сохранением в файл
+cryptocore dgst --algorithm sha256 --hmac --key <ключ> --input <файл> --output hmac.txt
+```
+### Проверка HMAC
+```bash
+#cryptocore dgst --algorithm sha256 --hmac --key <ключ> --input <файл> --verify hmac.txt
+
+# При успехе: [OK] HMAC verification successful
+# При ошибке: [ERROR] HMAC verification failed
+```
+### Параметры HMAC 
+* --hmac: включить режим HMAC
+* --key, -k: секретный ключ в шестнадцатеричном формате
+* --verify: файл с ожидаемым HMAC для проверки
+
+### Пример использования
+```bash
+# 1. Генерация HMAC
+cryptocore dgst --algorithm sha256 --hmac --key 00112233445566778899aabbccddeeff --input document.pdf --output doc.hmac
+
+# 2. Проверка HMAC (должна пройти)
+cryptocore dgst --algorithm sha256 --hmac --key 00112233445566778899aabbccddeeff --input document.pdf --verify doc.hmac
+
+# 3. Изменяем файл
+echo "изменения" >> document.pdf
+
+# 4. Проверка HMAC (должна провалиться)  
+cryptocore dgst --algorithm sha256 --hmac --key 00112233445566778899aabbccddeeff --input document.pdf --verify doc.hmac
+```
+### Особенности реализации 
+* Поддержка ключей произвольной длины
+
+* Автоматическая обработка ключей (хеширование длинных ключей, дополнение коротких)
+
+* Сравнение HMAC с защитой от атак по времени
+
+  * Поддержка SHA-256 и SHA3-256
 ### Размер ключа и IV
 Ключ должен быть ровно **16 байт** (32 hex-символа):
 ```
