@@ -6,7 +6,9 @@ from .modes.cbc import CBCMode
 from .modes.cfb import CFBMode
 from .modes.ofb import OFBMode
 from .modes.ctr import CTRMode
+from .modes.gcm import GCMMode
 from .mac.hmac import hmac_file, verify_hmac, parse_hmac_file
+from .modes.etm import ETMMode
 
 
 def main():
@@ -14,15 +16,18 @@ def main():
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
     crypto_parser = subparsers.add_parser('crypto', help='Encryption/decryption operations')
-    crypto_parser.add_argument('-algorithm', '-alg', choices=['aes'], required=True, help='Cryptographic algorithm')
-    crypto_parser.add_argument('-mode', '-m', choices=['ecb', 'cbc', 'cfb', 'ofb', 'ctr'], required=True,
-                               help='Block cipher mode')
+    crypto_parser.add_argument('-algorithm', '-alg', choices=['aes'], required=True,
+                               help='Cryptographic algorithm')
+    crypto_parser.add_argument('-mode', '-m',
+                               choices=['ecb', 'cbc', 'cfb', 'ofb', 'ctr', 'gcm', 'etm'],
+                               required=True, help='Block cipher mode')
     crypto_parser.add_argument('-encrypt', '-enc', action='store_true', help='Encrypt mode')
     crypto_parser.add_argument('-decrypt', '-dec', action='store_true', help='Decrypt mode')
     crypto_parser.add_argument('-key', '-k', required=True, help='Encryption key in hex')
     crypto_parser.add_argument('-input', '-i', required=True, help='Input file path')
     crypto_parser.add_argument('-output', '-o', required=True, help='Output file path')
     crypto_parser.add_argument('-iv', help='Initialization vector in hex')
+    crypto_parser.add_argument('-aad', '--aad', help='Associated Authenticated Data in hex')
 
     hash_parser = subparsers.add_parser('dgst', help='Compute message digests (hash) and HMAC')
     hash_parser.add_argument('-algorithm', '-alg', choices=['sha256', 'sha3-256'],
@@ -37,7 +42,7 @@ def main():
     hmac_group.add_argument('--verify', metavar='FILE',
                             help='Verify HMAC against file with expected value')
     hmac_group.add_argument('--cmac', action='store_true',
-                            help='Use AES-CMAC instead of HMAC (bonus)')
+                            help='Use AES-CMAC instead of HMAC')
 
     args = parser.parse_args()
 
@@ -51,37 +56,86 @@ def main():
 
 def handle_crypto_command(args):
     try:
-        if args.algorithm == 'aes':
-            if args.mode == 'ecb':
-                cipher = ECBMode(args.key)
-            elif args.mode == 'cbc':
-                cipher = CBCMode(args.key, args.iv)
-            elif args.mode == 'cfb':
-                cipher = CFBMode(args.key, args.iv)
-            elif args.mode == 'ofb':
-                cipher = OFBMode(args.key, args.iv)
-            elif args.mode == 'ctr':
-                cipher = CTRMode(args.key, args.iv)
+        if args.algorithm != 'aes':
+            print(f"Ошибка: Неподдерживаемый алгоритм: {args.algorithm}")
+            return
+
+        aad = b""
+        if args.aad:
+            try:
+                aad = bytes.fromhex(args.aad)
+            except ValueError:
+                print("Ошибка: AAD должен быть в шестнадцатеричном формате")
+                sys.exit(1)
+
+        key_bytes = bytes.fromhex(args.key)
+
+        if args.mode == 'ecb':
+            cipher = ECBMode(key_bytes)
+        elif args.mode == 'cbc':
+            iv = bytes.fromhex(args.iv) if args.iv else None
+            cipher = CBCMode(key_bytes, iv)
+        elif args.mode == 'cfb':
+            iv = bytes.fromhex(args.iv) if args.iv else None
+            cipher = CFBMode(key_bytes, iv)
+        elif args.mode == 'ofb':
+            iv = bytes.fromhex(args.iv) if args.iv else None
+            cipher = OFBMode(key_bytes, iv)
+        elif args.mode == 'ctr':
+            iv = bytes.fromhex(args.iv) if args.iv else None
+            cipher = CTRMode(key_bytes, iv)
+        elif args.mode == 'gcm':
+            nonce = bytes.fromhex(args.iv) if args.iv else None
+            cipher = GCMMode(key_bytes, nonce)
+        elif args.mode == 'etm':
+            iv = bytes.fromhex(args.iv) if args.iv else None
+            cipher = ETMMode(key_bytes, iv)
+        else:
+            print(f"Ошибка: Неподдерживаемый режим: {args.mode}")
+            return
+
+        with open(args.input, 'rb') as f:
+            data = f.read()
+
+        if args.encrypt:
+            if args.mode == 'gcm':
+                result = cipher.encrypt(data, aad)
+            elif args.mode == 'etm':
+                result = cipher.encrypt(data, aad)
             else:
-                print(f"Ошибка: Неподдерживаемый режим: {args.mode}")
-                return
-
-            with open(args.input, 'rb') as f:
-                data = f.read()
-
-            if args.encrypt:
                 result = cipher.encrypt(data)
-                print(f"Файл {args.input} зашифрован -> {args.output} (режим {args.mode.upper()})")
-            elif args.decrypt:
-                result = cipher.decrypt(data)
+            print(f"Файл {args.input} зашифрован -> {args.output} (режим {args.mode.upper()})")
+
+        elif args.decrypt:
+            try:
+                if args.mode == 'gcm':
+                    result = cipher.decrypt(data, aad)
+                elif args.mode == 'etm':
+                    result = cipher.decrypt(data, aad)
+                else:
+                    result = cipher.decrypt(data)
                 print(f"Файл {args.input} расшифрован -> {args.output} (режим {args.mode.upper()})")
-            else:
-                print("Ошибка: Укажите --encrypt или --decrypt")
-                return
 
-            with open(args.output, 'wb') as f:
-                f.write(result)
+            except Exception as e:
+                if "Authentication" in str(e) or "аутентификации" in str(e):
+                    print(f"[ERROR] {e}")
+                    print("Файл не создан из-за провала аутентификации")
+                    if os.path.exists(args.output):
+                        os.remove(args.output)
+                else:
+                    print(f"Ошибка: {e}")
+                sys.exit(1)
 
+        else:
+            print("Ошибка: Укажите --encrypt или --decrypt")
+            return
+
+        with open(args.output, 'wb') as f:
+            f.write(result)
+
+    except ValueError as e:
+        print(f"Ошибка формата: {e}")
+        sys.exit(1)
     except Exception as e:
         print(f"Ошибка: {e}")
         sys.exit(1)
