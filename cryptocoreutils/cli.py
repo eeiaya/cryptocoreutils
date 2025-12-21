@@ -15,6 +15,7 @@ def main():
     parser = argparse.ArgumentParser(description='CryptoCore - Cryptographic Utilities')
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
+    # Crypto command
     crypto_parser = subparsers.add_parser('crypto', help='Encryption/decryption operations')
     crypto_parser.add_argument('-algorithm', '-alg', choices=['aes'], required=True,
                                help='Cryptographic algorithm')
@@ -23,12 +24,13 @@ def main():
                                required=True, help='Block cipher mode')
     crypto_parser.add_argument('-encrypt', '-enc', action='store_true', help='Encrypt mode')
     crypto_parser.add_argument('-decrypt', '-dec', action='store_true', help='Decrypt mode')
-    crypto_parser.add_argument('-key', '-k', required=True, help='Encryption key in hex')
+    crypto_parser.add_argument('-key', '-k', help='Encryption key in hex')
     crypto_parser.add_argument('-input', '-i', required=True, help='Input file path')
     crypto_parser.add_argument('-output', '-o', required=True, help='Output file path')
     crypto_parser.add_argument('-iv', help='Initialization vector in hex')
     crypto_parser.add_argument('-aad', '--aad', help='Associated Authenticated Data in hex')
 
+    # Hash/digest command
     hash_parser = subparsers.add_parser('dgst', help='Compute message digests (hash) and HMAC')
     hash_parser.add_argument('-algorithm', '-alg', choices=['sha256', 'sha3-256'],
                              required=True, help='Hash algorithm')
@@ -44,22 +46,47 @@ def main():
     hmac_group.add_argument('--cmac', action='store_true',
                             help='Use AES-CMAC instead of HMAC')
 
+    # Derive command (Sprint 7)
+    derive_parser = subparsers.add_parser('derive', help='Key derivation operations')
+    derive_parser.add_argument('--password', '-p', help='Password string')
+    derive_parser.add_argument('--password-file', metavar='FILE',
+                               help='Read password from file')
+    derive_parser.add_argument('--salt', '-s', help='Salt in hex format')
+    derive_parser.add_argument('--iterations', '-n', type=int, default=100000,
+                               help='Number of iterations (default: 100000)')
+    derive_parser.add_argument('--length', '-l', type=int, default=32,
+                               help='Key length in bytes (default: 32)')
+    derive_parser.add_argument('--algorithm', '-alg', choices=['pbkdf2'], default='pbkdf2',
+                               help='KDF algorithm (default: pbkdf2)')
+    derive_parser.add_argument('--output', '-o', help='Output file path (optional)')
+    derive_parser.add_argument('--context', '-c', help='Context string for key hierarchy')
+    derive_parser.add_argument('--master-key', '-mk', help='Master key in hex for key hierarchy')
+
     args = parser.parse_args()
 
     if args.command == 'crypto':
         handle_crypto_command(args)
     elif args.command == 'dgst':
         handle_hash_command(args)
+    elif args.command == 'derive':
+        handle_derive_command(args)
     else:
         parser.print_help()
 
 
 def handle_crypto_command(args):
+    """Обработка команды шифрования/дешифрования."""
     try:
         if args.algorithm != 'aes':
             print(f"Ошибка: Неподдерживаемый алгоритм: {args.algorithm}")
-            return
+            sys.exit(1)
 
+        # Проверка входного файла
+        if not os.path.exists(args.input):
+            print(f"Ошибка: Файл {args.input} не найден")
+            sys.exit(1)
+
+        # Обработка AAD для GCM/ETM
         aad = b""
         if args.aad:
             try:
@@ -68,35 +95,55 @@ def handle_crypto_command(args):
                 print("Ошибка: AAD должен быть в шестнадцатеричном формате")
                 sys.exit(1)
 
-        key_bytes = bytes.fromhex(args.key)
+        # Обработка ключа - режимы ожидают HEX СТРОКУ
+        if not args.key:
+            from .csprng import generate_random_bytes
+            key_bytes = generate_random_bytes(16)
+            key_hex = key_bytes.hex()
+            print(f"[INFO] Сгенерирован случайный ключ: {key_hex}")
+        else:
+            # Проверяем что ключ валидный hex
+            try:
+                bytes.fromhex(args.key)  # Проверка валидности
+                key_hex = args.key
+            except ValueError:
+                print("Ошибка: Ключ должен быть в шестнадцатеричном формате")
+                sys.exit(1)
 
+        # Обработка IV - режимы ожидают HEX СТРОКУ или None
+        iv_hex = None
+        if args.iv:
+            try:
+                bytes.fromhex(args.iv)  # Проверка валидности
+                iv_hex = args.iv
+            except ValueError:
+                print("Ошибка: IV должен быть в шестнадцатеричном формате")
+                sys.exit(1)
+
+        # Создание cipher объекта - передаём HEX СТРОКИ
         if args.mode == 'ecb':
-            cipher = ECBMode(key_bytes)
+            cipher = ECBMode(key_hex)
         elif args.mode == 'cbc':
-            iv = bytes.fromhex(args.iv) if args.iv else None
-            cipher = CBCMode(key_bytes, iv)
+            cipher = CBCMode(key_hex, iv_hex)
         elif args.mode == 'cfb':
-            iv = bytes.fromhex(args.iv) if args.iv else None
-            cipher = CFBMode(key_bytes, iv)
+            cipher = CFBMode(key_hex, iv_hex)
         elif args.mode == 'ofb':
-            iv = bytes.fromhex(args.iv) if args.iv else None
-            cipher = OFBMode(key_bytes, iv)
+            cipher = OFBMode(key_hex, iv_hex)
         elif args.mode == 'ctr':
-            iv = bytes.fromhex(args.iv) if args.iv else None
-            cipher = CTRMode(key_bytes, iv)
+            cipher = CTRMode(key_hex, iv_hex)
         elif args.mode == 'gcm':
-            nonce = bytes.fromhex(args.iv) if args.iv else None
-            cipher = GCMMode(key_bytes, nonce)
+            cipher = GCMMode(key_hex, iv_hex)
         elif args.mode == 'etm':
-            iv = bytes.fromhex(args.iv) if args.iv else None
-            cipher = ETMMode(key_bytes, iv)
+            cipher = ETMMode(key_hex, iv_hex)
         else:
             print(f"Ошибка: Неподдерживаемый режим: {args.mode}")
-            return
+            sys.exit(1)
 
+        # Читаем входной файл
         with open(args.input, 'rb') as f:
             data = f.read()
 
+        # Выполняем шифрование или дешифрование
         if args.encrypt:
             if args.mode == 'gcm':
                 result = cipher.encrypt(data, aad)
@@ -117,22 +164,27 @@ def handle_crypto_command(args):
                 print(f"Файл {args.input} расшифрован -> {args.output} (режим {args.mode.upper()})")
 
             except Exception as e:
-                if "Authentication" in str(e) or "аутентификации" in str(e):
+                error_msg = str(e)
+                if "Authentication" in error_msg or "аутентификации" in error_msg:
                     print(f"[ERROR] {e}")
                     print("Файл не создан из-за провала аутентификации")
                     if os.path.exists(args.output):
                         os.remove(args.output)
+                    sys.exit(1)
                 else:
-                    print(f"Ошибка: {e}")
-                sys.exit(1)
+                    raise
 
         else:
-            print("Ошибка: Укажите --encrypt или --decrypt")
-            return
+            print("Ошибка: Укажите -encrypt или -decrypt")
+            sys.exit(1)
 
+        # Записываем результат
         with open(args.output, 'wb') as f:
             f.write(result)
 
+    except FileNotFoundError as e:
+        print(f"Ошибка: Файл не найден: {e}")
+        sys.exit(1)
     except ValueError as e:
         print(f"Ошибка формата: {e}")
         sys.exit(1)
@@ -142,6 +194,7 @@ def handle_crypto_command(args):
 
 
 def handle_hash_command(args):
+    """Обработка команды хеширования и HMAC."""
     try:
         if not os.path.exists(args.input):
             print(f"Ошибка: Файл {args.input} не найден")
@@ -210,6 +263,115 @@ def handle_hash_command(args):
 
     except Exception as e:
         print(f"Ошибка: {e}")
+        sys.exit(1)
+
+
+def handle_derive_command(args):
+    """Обработка команды деривации ключей."""
+    try:
+        from .kdf.pbkdf2 import pbkdf2_hmac_sha256, generate_salt
+        from .kdf.hkdf import derive_key
+
+        # Проверка длины
+        if args.length < 1:
+            print("Ошибка: Длина ключа должна быть положительной")
+            sys.exit(1)
+
+        # ===== KEY HIERARCHY MODE =====
+        if args.master_key:
+            if not args.context:
+                print("Ошибка: Для key hierarchy требуется указать --context")
+                sys.exit(1)
+
+            try:
+                master_key_bytes = bytes.fromhex(args.master_key)
+            except ValueError:
+                print("Ошибка: Мастер-ключ должен быть в шестнадцатеричном формате")
+                sys.exit(1)
+
+            derived_key = derive_key(master_key_bytes, args.context, args.length)
+
+            # Вывод для key hierarchy
+            if args.output:
+                with open(args.output, 'wb') as f:
+                    f.write(derived_key)
+                print(f"[INFO] Ключ записан в: {args.output}", file=sys.stderr)
+                print(f"[INFO] Контекст: {args.context}", file=sys.stderr)
+                print(f"[INFO] Длина ключа: {args.length} байт", file=sys.stderr)
+            else:
+                # Для key hierarchy выводим только ключ (нет соли)
+                print(derived_key.hex())
+
+            # Очистка
+            derived_key = None
+            return
+
+        # ===== PBKDF2 MODE =====
+        # Получение пароля (обязательно для PBKDF2)
+        password = None
+        if args.password_file:
+            try:
+                with open(args.password_file, 'r', encoding='utf-8') as f:
+                    password = f.read().strip()
+            except Exception as e:
+                print(f"Ошибка чтения файла пароля: {e}")
+                sys.exit(1)
+        elif args.password:
+            password = args.password
+        else:
+            print("Ошибка: Требуется указать --password, --password-file или --master-key")
+            sys.exit(1)
+
+        # Проверка итераций
+        if args.iterations < 1:
+            print("Ошибка: Количество итераций должно быть положительным")
+            sys.exit(1)
+
+        # Получение или генерация соли
+        salt = None
+        salt_generated = False
+        if args.salt:
+            try:
+                salt = bytes.fromhex(args.salt)
+            except ValueError:
+                print("Ошибка: Соль должна быть в шестнадцатеричном формате")
+                sys.exit(1)
+        else:
+            salt = generate_salt(16)
+            salt_generated = True
+            print(f"[INFO] Сгенерирована соль: {salt.hex()}", file=sys.stderr)
+
+        # Выполнение PBKDF2
+        derived_key = pbkdf2_hmac_sha256(
+            password=password,
+            salt=salt,
+            iterations=args.iterations,
+            dklen=args.length
+        )
+
+        # Вывод результата
+        if args.output:
+            # Записываем ключ в файл как сырые байты
+            with open(args.output, 'wb') as f:
+                f.write(derived_key)
+            print(f"[INFO] Ключ записан в: {args.output}", file=sys.stderr)
+            print(f"[INFO] Соль: {salt.hex()}", file=sys.stderr)
+            print(f"[INFO] Итерации: {args.iterations}", file=sys.stderr)
+            print(f"[INFO] Длина: {args.length} байт", file=sys.stderr)
+        else:
+            # Вывод в stdout: KEY_HEX SALT_HEX (согласно CLI-3)
+            print(f"{derived_key.hex()} {salt.hex()}")
+
+        # Очистка пароля из памяти
+        password = None
+        derived_key = None
+
+    except ImportError as e:
+        print(f"Ошибка импорта KDF модулей: {e}")
+        print("Убедитесь что реализованы модули kdf/pbkdf2.py и kdf/hkdf.py")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Ошибка при выполнении derive: {e}")
         sys.exit(1)
 
 

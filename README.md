@@ -311,26 +311,48 @@ AAD передаётся как hex-строка, например, 48656c6c6f (
 
 * Сохраняйте ключи в безопасном месте
 
-## Совместимость с OpenSSL
 
-### Шифрование утилитой, дешифрование OpenSSL
+## Генерация ключей (KDF)
+
+Key Derivation Functions (KDF) — функции для получения криптографических ключей из паролей или других ключей. CryptoCore поддерживает:
+
+- PBKDF2-HMAC-SHA256 — получение ключей из паролей
+- Key Hierarchy — получение множества ключей из мастер-ключа
+
+### Концепции
+
+### Key Stretching (растяжение ключа)
+
+Процесс преобразования пароля (с низкой энтропией) в криптографический ключ фиксированной длины. PBKDF2 использует многократное применение HMAC для увеличения вычислительной сложности атак перебором.
+
+### Salting (соль)
+
+Случайное значение, добавляемое к паролю перед хешированием. Предотвращает:
+- Атаки с использованием радужных таблиц
+- Определение одинаковых паролей по совпадению хешей
+
+**Требования к соли:**
+- Минимум 16 байт (128 бит)
+- Криптографически случайная
+- Уникальная для каждого пароля
+
+### Команда derive
 
 ```bash
-# Шифрование
-crypto -algorithm aes --mode cbc --encrypt \
-       -key 000102030405060708090a0b0c0d0e0f \
-       -input plain.txt --output cipher.bin
+# Базовое использование
+python main.py derive --password "MyPassword" --salt <HEX> --iterations 100000 --length 32
 
-# Извлечение IV и шифртекста
-dd if=cipher.bin of=iv.bin bs=16 count=1
-dd if=cipher.bin of=ciphertext_only.bin bs=16 skip=1
+# С автогенерацией соли
+python main.py derive --password "MyPassword"
 
-# Дешифрование OpenSSL
-openssl enc -aes-128-cbc -d \
-       -K 000102030405060708090A0B0C0D0E0F \
-       -iv $(xxd -p iv.bin | tr -d '\n') \
-       -in ciphertext_only.bin -out decrypted.txt
+# Сохранение в файл
+python main.py derive --password "MyPassword" --output key.bin
+
+# Key Hierarchy (иерархия ключей)
+python main.py derive --master-key <HEX> --context "encryption" --length 32
 ```
+
+## Совместимость с OpenSSL
 
 ### Шифрование OpenSSL, дешифрование утилитой
 
@@ -637,7 +659,7 @@ print('PASSED' if len(nonces) == 1000 else 'FAILED')
 # PASSED
 ```
 ### TEST-6: Empty AAD
-```commandline
+```
 echo -n "Message with empty AAD" > tests/aead/empty_aad.txt
 
 # Шифруем с пустым AAD
@@ -659,7 +681,7 @@ diff -s tests/aead/empty_aad.txt tests/aead/empty_aad_decrypted.txt
 ```
 
 ### TEST-7: Large AAD
-```commandline
+```
 # Генерируем большой AAD (10KB в hex)
 LARGE_AAD=$(python3 -c "import os; print(os.urandom(10240).hex())")
 
@@ -685,7 +707,7 @@ diff -s tests/aead/large_aad.txt tests/aead/large_aad_decrypted.txt
 
 ## Тестирование ETM
 ### TEST-9.1: ETM Round-trip
-```commandline
+```
 echo -n "ETM test message" > tests/aead/etm_plain.txt
 
 crypto -alg aes -m etm -enc \
@@ -704,7 +726,7 @@ diff -s tests/aead/etm_plain.txt tests/aead/etm_decrypted.txt
 # Ожидаемый вывод: Files ... are identical
 ```
 ### TEST-9.2: ETM AAD Tampering
-```commandline
+```
 crypto -alg aes -m etm -dec \
     -k 00112233445566778899aabbccddeeff \
     --aad 646566 \
@@ -717,7 +739,7 @@ ls tests/aead/etm_aad_fail.txt 2>&1
 # Ожидаемый вывод: No such file or directory
 ```
 ### TEST-9.3: ETM Ciphertext Tampering
-```commandline
+```
 cp tests/aead/etm_cipher.bin tests/aead/etm_tampered.bin
 
 python3 -c "
@@ -737,7 +759,7 @@ ls tests/aead/etm_tamper_fail.txt 2>&1
 # Ожидаемый вывод: No such file or directory
 ```
 ### TEST-9.4: ETM Wrong Key
-```commandline
+```
 crypto -alg aes -m etm -dec \
     -k ffffffffffffffffffffffffffffffff \
     --aad 616263 \
@@ -748,6 +770,109 @@ crypto -alg aes -m etm -dec \
 ls tests/aead/etm_wrong_key.txt 2>&1
 # Ожидаемый вывод: No such file or director
 ```
+## Тестирование 
+### TEST-1: Known-Answer Tests (PBKDF2-HMAC-SHA256)
+```
+python main.py derive --password "password" --salt 73616c74 --iterations 1 --length 20
+# Ожидается: 120fb6cffcf8b32c43e7225256c4f837a86548c9 73616c74
+
+# Тест 2: iterations=2, length=20
+python main.py derive --password "password" --salt 73616c74 --iterations 2 --length 20
+# Ожидается: ae4d0c95af6b46d32d0adff928f06dd02a303f8e 73616c74
+
+# Тест 3: iterations=4096, length=20
+python main.py derive --password "password" --salt 73616c74 --iterations 4096 --length 20
+# Ожидается: c5e478d59288c841aa530db6845c4c8d962893a0 73616c74
+
+# Тест 4: iterations=4096, length=32 (полный блок SHA256)
+python main.py derive --password "password" --salt 73616c74 --iterations 4096 --length 32
+# Ожидается: c5e478d59288c841aa530db6845c4c8d962893a001ce4e11a4963873aa98134a 73616c74
+
+# Тест 5: длинный пароль и соль, length=25
+python main.py derive --password "passwordPASSWORDpassword" --salt 73616c7453414c5473616c7453414c5473616c7453414c5473616c7453414c5473616c74 --iterations 4096 --length 25
+# Ожидается: 348c89dbcbd32b2f32d814b8116e84cf2b17347ebc1800181c 73616c7453414c5473616c7453414c5473616c7453414c5473616c7453414c5473616c74
+```
+### TEST-2: Iteration Test (одинаковые параметры = одинаковый результат)
+```
+# Запустить 5 раз подряд - результат должен быть идентичным
+python main.py derive --password "TestPassword123" --salt aabbccdd11223344 --iterations 1000 --length 32
+python main.py derive --password "TestPassword123" --salt aabbccdd11223344 --iterations 1000 --length 32
+python main.py derive --password "TestPassword123" --salt aabbccdd11223344 --iterations 1000 --length 32
+python main.py derive --password "TestPassword123" --salt aabbccdd11223344 --iterations 1000 --length 32
+python main.py derive --password "TestPassword123" --salt aabbccdd11223344 --iterations 1000 --length 32
+# Все 5 результатов должны быть абсолютно одинаковыми
+```
+### TEST-3: Length Test (ключи различной длины 1-100 байт)
+```
+# Длина 1 байт
+python main.py derive --password "password" --salt 73616c74 --iterations 100 --length 1
+# Ожидается: 1 байт (2 hex символа)
+
+# Длина 16 байт
+python main.py derive --password "password" --salt 73616c74 --iterations 100 --length 16
+# Ожидается: 16 байт (32 hex символа)
+
+# Длина 31 байт (меньше блока SHA256)
+python main.py derive --password "password" --salt 73616c74 --iterations 100 --length 31
+# Ожидается: 31 байт (62 hex символа)
+
+# Длина 32 байт (ровно 1 блок SHA256)
+python main.py derive --password "password" --salt 73616c74 --iterations 100 --length 32
+# Ожидается: 32 байт (64 hex символа)
+
+# Длина 33 байт (больше 1 блока, нужен 2-й)
+python main.py derive --password "password" --salt 73616c74 --iterations 100 --length 33
+# Ожидается: 33 байт (66 hex символов)
+
+# Длина 64 байт (ровно 2 блока)
+python main.py derive --password "password" --salt 73616c74 --iterations 100 --length 64
+# Ожидается: 64 байт (128 hex символов)
+
+# Длина 100 байт
+python main.py derive --password "password" --salt 73616c74 --iterations 100 --length 100
+# Ожидается: 100 байт (200 hex символов)
+```
+### TEST-4: Interoperability Test с OpenSSL 
+```
+# Наша реализация
+python main.py derive --password "test" --salt 1234567890abcdef --iterations 1000 --length 32
+# 4cd8b5c46aee47f0d4a6a0dd7c205b1d30b54d2503c13fe7422e95ea312b7425
+
+# OpenSSL (если установлен, версия 3.0+)
+openssl kdf -keylen 32 -kdfopt digest:SHA256 -kdfopt pass:test -kdfopt hexsalt:1234567890abcdef -kdfopt iter:1000 PBKDF2
+# Результаты должны совпадать. 4cd8b5c46aee47f0d4a6a0dd7c205b1d30b54d2503c13fe7422e95ea312b7425
+```
+### TEST-5: Key Hierarchy Test (derive_key детерминистичен)
+```
+# Запустить 5 раз с одинаковым мастер-ключом и контекстом
+python main.py derive --master-key 0000000000000000000000000000000000000000000000000000000000000000 --context "encryption" --length 32
+python main.py derive --master-key 0000000000000000000000000000000000000000000000000000000000000000 --context "encryption" --length 32
+python main.py derive --master-key 0000000000000000000000000000000000000000000000000000000000000000 --context "encryption" --length 32
+python main.py derive --master-key 0000000000000000000000000000000000000000000000000000000000000000 --context "encryption" --length 32
+python main.py derive --master-key 0000000000000000000000000000000000000000000000000000000000000000 --context "encryption" --length 32
+# Все 5 результатов должны быть идентичными
+```
+### TEST-6: Context Separation Test (разные контексты = разные ключи)
+```
+# Один и тот же мастер-ключ, разные контексты
+python main.py derive --master-key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --context "encryption" --length 32
+python main.py derive --master-key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --context "authentication" --length 32
+python main.py derive --master-key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --context "signing" --length 32
+python main.py derive --master-key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --context "key_wrapping" --length 32
+python main.py derive --master-key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --context "iv_generation" --length 32
+# Все 5 ключей должны быть РАЗНЫМИ!
+```
+### TEST-7: Salt Randomness Test (уникальность генерируемых солей)
+```
+# Запустить несколько раз без --salt и проверить что соли разные
+python main.py derive --password "test" --length 16
+python main.py derive --password "test" --length 16
+python main.py derive --password "test" --length 16
+python main.py derive --password "test" --length 16
+python main.py derive --password "test" --length 16
+# Каждый раз соль (вторая часть вывода) должна быть уникальной
+```
+
 
 ## Требования
 
@@ -785,7 +910,11 @@ CryptoCoreUtils/
 │   ├── hash/                 
 │   │   ├── __init__.py
 │   │   ├── sha256.py        
-│   │   └── sha3_256.py      
+│   │   └── sha3_256.py 
+│   ├── kdf/
+│   │   ├── __init__.py
+│   │   ├── hkdf.py   
+│   │   └── pbkdf2.py 
 │   ├── mac/                  
 │   │   ├── __init__.py
 │   │   └── hmac.py          
