@@ -5,17 +5,17 @@
 
 
 
-test_*
-secret_*
 
+secret_*
+#test_*
 
 !tests/plain.txt
-!test_16bytes.txt
-
-
-tests/*
-!tests/*.py
-!tests/__init__.py
+#!test_16bytes.txt
+#
+#
+#tests/*
+#!tests/*.py
+#!tests/__init__.py
 
 
 

@@ -837,7 +837,7 @@ python main.py derive --password "password" --salt 73616c74 --iterations 100 --l
 # Наша реализация
 python main.py derive --password "test" --salt 1234567890abcdef --iterations 1000 --length 32
 # 4cd8b5c46aee47f0d4a6a0dd7c205b1d30b54d2503c13fe7422e95ea312b7425
-
+   
 # OpenSSL (если установлен, версия 3.0+)
 openssl kdf -keylen 32 -kdfopt digest:SHA256 -kdfopt pass:test -kdfopt hexsalt:1234567890abcdef -kdfopt iter:1000 PBKDF2
 # Результаты должны совпадать. 4cd8b5c46aee47f0d4a6a0dd7c205b1d30b54d2503c13fe7422e95ea312b7425
@@ -878,6 +878,8 @@ python main.py derive --password "test" --length 16
 
 - Python 3.8 или выше
 - pycryptodome 3.23.0 или выше
+- numba
+- numpy
 
 ## Проверка целостности
 

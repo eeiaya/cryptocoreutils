@@ -11,17 +11,29 @@ class GCMMode:
     BLOCK_SIZE = 16
     GF_REDUCTION = 0xE1 << 120
 
+
+
     def __init__(self, key: bytes, nonce: bytes = None):
+        # Если ключ строка hex, преобразуем в байты
+        if isinstance(key, str):
+            try:
+                key = bytes.fromhex(key)
+            except ValueError:
+                raise ValueError("Ключ должен быть hex-строкой или байтами")
+
+        # Проверяем допустимые размеры ключа
         if len(key) not in (16, 24, 32):
-            raise ValueError(f"Неверный размер ключа: {len(key)} байт")
+            raise ValueError(f"Неверный размер ключа: {len(key)} байт (допустимо: 16, 24, 32)")
 
         self.key = key
-        self.cipher = AES128(key)
+        # Используем первые 16 байт для AES128
+        aes_key = key[:16] if len(key) > 16 else key
+        self.cipher = AES128(aes_key)
+
         self.nonce = nonce if nonce else generate_random_bytes(self.NONCE_SIZE)
 
         if len(self.nonce) != self.NONCE_SIZE:
             raise ValueError(f"Nonce должен быть {self.NONCE_SIZE} байт")
-
 
         zero_block = bytes(self.BLOCK_SIZE)
         self._H = self._bytes_to_int(
