@@ -33,72 +33,72 @@ python -m cryptocoreutils --help
 
 ```
 # ECB режим (без IV)
-crypto -alg aes -m ecb -enc -k 000102030405060708090a0b0c0d0e0f -i tests/document.txt -o tests/document.enc
+python main.py crypto -alg aes -m ecb -enc -k 000102030405060708090a0b0c0d0e0f -i tests/document.txt -o tests/document.enc
 
 # CBC режим (IV генерируется автоматически)
-crypto -alg aes -m cbc -enc -k 000102030405060708090a0b0c0d0e0f -i tests/document.txt -o tests/document.enc
+python main.py crypto -alg aes -m cbc -enc -k 000102030405060708090a0b0c0d0e0f -i tests/document.txt -o tests/document.enc
 
 # CFB режим (потоковый)
-crypto -alg aes -m cfb -enc -k 000102030405060708090a0b0c0d0e0f -i tests/document.txt -o tests/document.enc
+python main.py crypto -alg aes -m cfb -enc -k 000102030405060708090a0b0c0d0e0f -i tests/document.txt -o tests/document.enc
 
 # OFB режим (потоковый)  
-crypto -alg aes -m ofb -enc -k 000102030405060708090a0b0c0d0e0f -i tests/document.txt -o tests/document.enc
+python main.py crypto -alg aes -m ofb -enc -k 000102030405060708090a0b0c0d0e0f -i tests/document.txt -o tests/document.enc
 
 # CTR режим (потоковый)
-crypto -alg aes -m ctr -enc -k 000102030405060708090a0b0c0d0e0f -i tests/document.txt -o tests/document.enc
+python main.py crypto -alg aes -m ctr -enc -k 000102030405060708090a0b0c0d0e0f -i tests/document.txt -o tests/document.enc
 
 # GCM режим (аутентифицированное шифрование)
-crypto -alg aes -m gcm -enc -k 00112233445566778899aabbccddeeff -i tests/document.txt -o tests/document.enc --aad 616263
+python main.py crypto -alg aes -m gcm -enc -k 00112233445566778899aabbccddeeff -i tests/document.txt -o tests/document.enc --aad 616263
 
 # ETM режим (Encrypt-then-MAC)
-crypto -alg aes -m etm -enc -k 00112233445566778899aabbccddeeff -i tests/document.txt -o tests/document.enc --aad 616263
+python main.py crypto -alg aes -m etm -enc -k 00112233445566778899aabbccddeeff -i tests/document.txt -o tests/document.enc --aad 616263
 ```
 
 ### Базовые команды дешифрования
 
 ```
 # ECB режим (без IV)
-crypto -alg aes -m ecb -dec -k 000102030405060708090a0b0c0d0e0f -i tests/document.enc -o tests/document_decrypted.txt
+python main.py crypto -alg aes -m ecb -dec -k 000102030405060708090a0b0c0d0e0f -i tests/document.enc -o tests/document_decrypted.txt
 
 # CBC режим (IV извлекается из файла)
-crypto -alg aes -m cbc -dec -k 000102030405060708090a0b0c0d0e0f -i tests/document.enc -o tests/document_decrypted.txt
+python main.py crypto -alg aes -m cbc -dec -k 000102030405060708090a0b0c0d0e0f -i tests/document.enc -o tests/document_decrypted.txt
 
 # CBC режим (IV передается явно)
-crypto -alg aes -m cbc -dec -k 000102030405060708090a0b0c0d0e0f --iv AABBCCDDEEFF00112233445566778899 -i tests/document.enc -o tests/document_decrypted.txt
+python main.py crypto -alg aes -m cbc -dec -k 000102030405060708090a0b0c0d0e0f --iv AABBCCDDEEFF00112233445566778899 -i tests/document.enc -o tests/document_decrypted.txt
 
 # Потоковые режимы (CFB, OFB, CTR) - аналогично CBC
-crypto -alg aes -m cfb -dec -k 000102030405060708090a0b0c0d0e0f -i tests/document.enc -o tests/document_decrypted.txt
+python main.py crypto -alg aes -m cfb -dec -k 000102030405060708090a0b0c0d0e0f -i tests/document.enc -o tests/document_decrypted.txt
 
 # GCM режим
-crypto -alg aes -m gcm -dec -k 00112233445566778899aabbccddeeff --aad 616263 -i tests/document.enc -o tests/document_decrypted.txt
+python main.py crypto -alg aes -m gcm -dec -k 00112233445566778899aabbccddeeff --aad 616263 -i tests/document.enc -o tests/document_decrypted.txt
 
 # ETM режим
-crypto -alg aes -m etm -dec -k 00112233445566778899aabbccddeeff --aad 616263 -i tests/document.enc -o tests/document_decrypted.txt
+python main.py crypto -alg aes -m etm -dec -k 00112233445566778899aabbccddeeff --aad 616263 -i tests/document.enc -o tests/document_decrypted.txt
 ```
 ### GCM Mode
 ```
 # Шифрование с AAD
-crypto -alg aes -m gcm -enc \
+python main.py crypto -alg aes -m gcm -enc \
     -k 00112233445566778899aabbccddeeff \
     --aad 48656c6c6f576f726c64 \
     -i tests/plain.txt \
     -o tests/cipher.bin
 
 # Шифрование без AAD
-crypto -alg aes -m gcm -enc \
+python main.py crypto -alg aes -m gcm -enc \
     -k 00112233445566778899aabbccddeeff \
     -i tests/plain.txt \
     -o tests/cipher.bin
 
 # Расшифрование (nonce читается из файла автоматически)
-crypto -alg aes -m gcm -dec \
+python main.py crypto -alg aes -m gcm -dec \
     -k 00112233445566778899aabbccddeeff \
     --aad 48656c6c6f576f726c64 \
     -i tests/cipher.bin \
     -o tests/decrypted.txt
 
 # Расшифрование с внешним nonce (через --nonce или --iv)
-crypto -alg aes -m gcm -dec\
+python main.py crypto -alg aes -m gcm -dec\
     -k 00112233445566778899aabbccddeeff\
     --nonce 000102030405060708090a0b \
     --aad 48656c6c6f576f726c64 \
@@ -108,20 +108,20 @@ crypto -alg aes -m gcm -dec\
 ### ETM Mode
 ```
 # Шифрование с AAD
-crypto -alg aes -m etm -enc \
+python main.py crypto -alg aes -m etm -enc \
     -k 00112233445566778899aabbccddeeff \
     --aad 616263 \
     -i tests/plain.txt \
     -o tests/cipher.bin
 
 # Шифрование без AAD
-crypto -a aes -m etm -enc \
+python main.py crypto -a aes -m etm -enc \
     -k 00112233445566778899aabbccddeeff \
     -i tests/plain.txt \
     -o tests/cipher.bin
 
 # Расшифрование
-crypto -alg aes -m etm -dec \
+python main.py crypto -alg aes -m etm -dec \
     -k 00112233445566778899aabbccddeeff \
     --aad 616263 \
     -i tests/cipher.bin \
@@ -144,20 +144,20 @@ crypto -alg aes -m etm -dec \
 
 ```
 # # Хэширование без указания выходного файла
-crypto dgst -alg sha256 -i document.pdf
+python main.py dgst -alg sha256 -i document.pdf
 # Вывод: e3b0c44298fc1c149afbf4c899cfb92427ae41e4649b934ca495991b7852b855  document.pdf
 
 # Хэширование с указанием выходного файла
-crypto dgst -alg sha3-256 -i backup.tar -o backup.sha3
+python main.py dgst -alg sha3-256 -i backup.tar -o backup.sha3
 
 # HMAC без указания выходного файла
-crypto dgst -alg sha256 --hmac -k 00112233445566778899aabbccddeeff -i tests/message.txt
+python main.py dgst -alg sha256 --hmac -k 00112233445566778899aabbccddeeff -i tests/message.txt
 
 # HMAC с указанием выходного файла
-crypto dgst -alg sha256 --hmac -k 00112233445566778899aabbccddeeff -i tests/message.txt -o tests/hmac.txt
+python main.py dgst -alg sha256 --hmac -k 00112233445566778899aabbccddeeff -i tests/message.txt -o tests/hmac.txt
 
 # HMAC с верификацией
-crypto dgst -alg sha256 --hmac -k 00112233445566778899aabbccddeeff -i tests/message.txt -v tests/hmac.txt
+python main.py dgst -alg sha256 --hmac -k 00112233445566778899aabbccddeeff -i tests/message.txt -v tests/hmac.txt
 # Вывод: [OK] HMAC verification successful
 ```
 
